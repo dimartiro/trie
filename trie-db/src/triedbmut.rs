@@ -124,12 +124,13 @@ impl<L: TrieLayout> From<&ValueOwned<TrieHash<L>>> for Value<L> {
 impl<L: TrieLayout> From<(Bytes, Option<u32>)> for Value<L> {
 	fn from((v, threshold): (Bytes, Option<u32>)) -> Self {
 		match v {
-			value =>
+			value => {
 				if threshold.map_or(false, |threshold| value.len() >= threshold as usize) {
 					Value::NewNode(None, value)
 				} else {
 					Value::Inline(value)
-				},
+				}
+			},
 		}
 	}
 }
@@ -169,14 +170,14 @@ impl<L: TrieLayout> Value<L> {
 				*hash = Some(new_hash);
 			}
 		}
-		let value = match &*self {
+		match &*self {
 			Value::Inline(value) => EncodedValue::Inline(&value),
 			Value::Node(hash) => EncodedValue::Node(hash.as_ref()),
 			Value::NewNode(Some(hash), _value) => EncodedValue::Node(hash.as_ref()),
-			Value::NewNode(None, _value) =>
-				unreachable!("New external value are always added before encoding anode"),
-		};
-		value
+			Value::NewNode(None, _value) => {
+				unreachable!("New external value are always added before encoding anode")
+			},
+		}
 	}
 
 	fn in_memory_fetched_value(
@@ -189,7 +190,7 @@ impl<L: TrieLayout> Value<L> {
 		Ok(Some(match self {
 			Value::Inline(value) => value.to_vec(),
 			Value::NewNode(_, value) => value.to_vec(),
-			Value::Node(hash) =>
+			Value::Node(hash) => {
 				if let Some(value) = db.get(hash, prefix) {
 					recorder.as_ref().map(|r| {
 						r.borrow_mut().record(TrieAccess::Value {
@@ -201,8 +202,9 @@ impl<L: TrieLayout> Value<L> {
 
 					value
 				} else {
-					return Err(Box::new(TrieError::IncompleteDatabase(hash.clone())))
-				},
+					return Err(Box::new(TrieError::IncompleteDatabase(hash.clone())));
+				}
+			},
 		}))
 	}
 }
@@ -263,13 +265,16 @@ where
 	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
 			Self::Empty => write!(fmt, "Empty"),
-			Self::Leaf((ref a, ref b), ref c) =>
-				write!(fmt, "Leaf({:?}, {:?})", (a, ToHex(&*b)), c),
-			Self::Extension((ref a, ref b), ref c) =>
-				write!(fmt, "Extension({:?}, {:?})", (a, ToHex(&*b)), c),
+			Self::Leaf((ref a, ref b), ref c) => {
+				write!(fmt, "Leaf({:?}, {:?})", (a, ToHex(&*b)), c)
+			},
+			Self::Extension((ref a, ref b), ref c) => {
+				write!(fmt, "Extension({:?}, {:?})", (a, ToHex(&*b)), c)
+			},
 			Self::Branch(ref a, ref b) => write!(fmt, "Branch({:?}, {:?}", a, b),
-			Self::NibbledBranch((ref a, ref b), ref c, ref d) =>
-				write!(fmt, "NibbledBranch({:?}, {:?}, {:?})", (a, ToHex(&*b)), c, d),
+			Self::NibbledBranch((ref a, ref b), ref c, ref d) => {
+				write!(fmt, "NibbledBranch({:?}, {:?}, {:?})", (a, ToHex(&*b)), c, d)
+			},
 		}
 	}
 }
@@ -320,8 +325,9 @@ impl<L: TrieLayout> Node<L> {
 		let node = match encoded_node {
 			EncodedNode::Empty => Node::Empty,
 			EncodedNode::Leaf(k, v) => Node::Leaf(k.into(), v.into()),
-			EncodedNode::Extension(key, cb) =>
-				Node::Extension(key.into(), Self::inline_or_hash(node_hash, cb, storage)?),
+			EncodedNode::Extension(key, cb) => {
+				Node::Extension(key.into(), Self::inline_or_hash(node_hash, cb, storage)?)
+			},
 			EncodedNode::Branch(encoded_children, val) => {
 				let mut child = |i: usize| match encoded_children[i] {
 					Some(child) => Self::inline_or_hash(node_hash, child, storage).map(Some),
@@ -385,8 +391,9 @@ impl<L: TrieLayout> Node<L> {
 		match node_owned {
 			NodeOwned::Empty => Node::Empty,
 			NodeOwned::Leaf(k, v) => Node::Leaf(k.into(), v.into()),
-			NodeOwned::Extension(key, cb) =>
-				Node::Extension(key.into(), Self::inline_or_hash_owned(cb, storage)),
+			NodeOwned::Extension(key, cb) => {
+				Node::Extension(key.into(), Self::inline_or_hash_owned(cb, storage))
+			},
 			NodeOwned::Branch(encoded_children, val) => {
 				let mut child = |i: usize| {
 					encoded_children[i]
@@ -443,8 +450,9 @@ impl<L: TrieLayout> Node<L> {
 
 				Node::NibbledBranch(k.into(), children, val.as_ref().map(Into::into))
 			},
-			NodeOwned::Value(_, _) =>
-				unreachable!("`NodeOwned::Value` can only be returned for the hash of a value."),
+			NodeOwned::Value(_, _) => {
+				unreachable!("`NodeOwned::Value` can only be returned for the hash of a value.")
+			},
 		}
 	}
 
@@ -493,9 +501,7 @@ impl<L: TrieLayout> Node<L> {
 					pr.len(),
 					// map the `NodeHandle`s from the Branch to `ChildReferences`
 					children.iter_mut().map(Option::take).enumerate().map(|(i, maybe_child)| {
-						//let branch_index = [i as u8];
 						maybe_child.map(|child| {
-							let pr = NibbleSlice::new_offset(&partial.1[..], partial.0);
 							child_cb(NodeToEncode::TrieNode(child), Some(&pr), Some(i as u8))
 						})
 					}),
@@ -579,7 +585,7 @@ where
 			EncodedNodeHandle::Hash(data) => {
 				let mut hash = HO::default();
 				if data.len() != hash.as_ref().len() {
-					return Err(data.to_vec())
+					return Err(data.to_vec());
 				}
 				hash.as_mut().copy_from_slice(data);
 				Ok(ChildReference::Hash(hash))
@@ -587,7 +593,7 @@ where
 			EncodedNodeHandle::Inline(data) => {
 				let mut hash = HO::default();
 				if data.len() > hash.as_ref().len() {
-					return Err(data.to_vec())
+					return Err(data.to_vec());
 				}
 				hash.as_mut()[..data.len()].copy_from_slice(data);
 				Ok(ChildReference::Inline(hash, data.len()))
@@ -869,30 +875,31 @@ where
 							.as_mut()
 							.map(|r| &mut ***r as &mut dyn TrieRecorder<TrieHash<L>>),
 					}
-					.look_up(full_key, partial)
+					.look_up(full_key, partial);
 				},
 				NodeHandle::InMemory(handle) => match &self.storage[handle] {
 					Node::Empty => return Ok(None),
-					Node::Leaf(slice, value) =>
+					Node::Leaf(slice, value) => {
 						if NibbleSlice::from_stored(slice) == partial {
 							return Ok(value.in_memory_fetched_value(
 								prefix,
 								self.db,
 								&self.recorder,
 								full_key,
-							)?)
+							)?);
 						} else {
-							return Ok(None)
-						},
+							return Ok(None);
+						}
+					},
 					Node::Extension(slice, child) => {
 						let slice = NibbleSlice::from_stored(slice);
 						if partial.starts_with(&slice) {
 							(slice.len(), child)
 						} else {
-							return Ok(None)
+							return Ok(None);
 						}
 					},
-					Node::Branch(children, value) =>
+					Node::Branch(children, value) => {
 						if partial.is_empty() {
 							return Ok(if let Some(v) = value.as_ref() {
 								v.in_memory_fetched_value(
@@ -903,14 +910,15 @@ where
 								)?
 							} else {
 								None
-							})
+							});
 						} else {
 							let idx = partial.at(0);
 							match children[idx as usize].as_ref() {
 								Some(child) => (1, child),
 								None => return Ok(None),
 							}
-						},
+						}
+					},
 					Node::NibbledBranch(slice, children, value) => {
 						let slice = NibbleSlice::from_stored(slice);
 						if slice == partial {
@@ -923,7 +931,7 @@ where
 								)?
 							} else {
 								None
-							})
+							});
 						} else if partial.starts_with(&slice) {
 							let idx = partial.at(slice.len());
 							match children[idx as usize].as_ref() {
@@ -931,7 +939,7 @@ where
 								None => return Ok(None),
 							}
 						} else {
-							return Ok(None)
+							return Ok(None);
 						}
 					},
 				},
@@ -1031,7 +1039,7 @@ where
 						if !changed {
 							// The new node we composed didn't change.
 							// It means our branch is untouched too.
-							return Ok(InsertAction::Restore(Node::Branch(children, stored_value)))
+							return Ok(InsertAction::Restore(Node::Branch(children, stored_value)));
 						}
 					} else {
 						// Original had nothing there. compose a leaf.
@@ -1122,7 +1130,7 @@ where
 								children,
 								stored_value,
 							);
-							return Ok(InsertAction::Restore(n_branch))
+							return Ok(InsertAction::Restore(n_branch));
 						}
 					} else {
 						// Original had nothing there. compose a leaf.
@@ -1157,8 +1165,8 @@ where
 					} else {
 						InsertAction::Replace(Node::Leaf(encoded.clone(), value))
 					}
-				} else if (L::USE_EXTENSION && common == 0) ||
-					(!L::USE_EXTENSION && common < existing_key.len())
+				} else if (L::USE_EXTENSION && common == 0)
+					|| (!L::USE_EXTENSION && common < existing_key.len())
 				{
 					#[cfg(feature = "std")]
 					trace!(
@@ -1366,8 +1374,9 @@ where
 		Ok(match (node, partial.is_empty()) {
 			(Node::Empty, _) => Action::Delete,
 			(Node::Branch(c, None), true) => Action::Restore(Node::Branch(c, None)),
-			(Node::NibbledBranch(n, c, None), true) =>
-				Action::Restore(Node::NibbledBranch(n, c, None)),
+			(Node::NibbledBranch(n, c, None), true) => {
+				Action::Restore(Node::NibbledBranch(n, c, None))
+			},
 			(Node::Branch(children, val), true) => {
 				self.replace_old_value(old_val, val, key.left());
 				// always replace since we took the value out.
@@ -1518,8 +1527,9 @@ where
 								true => Action::Replace(
 									self.fix(Node::Extension(encoded, new_child.into()), prefix)?,
 								),
-								false =>
-									Action::Restore(Node::Extension(encoded, new_child.into())),
+								false => {
+									Action::Restore(Node::Extension(encoded, new_child.into()))
+								},
 							}
 						},
 						None => {
@@ -1566,7 +1576,7 @@ where
 						(false, &UsedIndex::None) => used_index = UsedIndex::One(i as u8),
 						(false, &UsedIndex::One(_)) => {
 							used_index = UsedIndex::Many;
-							break
+							break;
 						},
 						_ => continue,
 					}
@@ -1614,7 +1624,7 @@ where
 						(false, &UsedIndex::None) => used_index = UsedIndex::One(i as u8),
 						(false, &UsedIndex::One(_)) => {
 							used_index = UsedIndex::Many;
-							break
+							break;
 						},
 						_ => continue,
 					}
@@ -2056,7 +2066,7 @@ where
 		value: &[u8],
 	) -> Result<Option<Value<L>>, TrieHash<L>, CError<L>> {
 		if !L::ALLOW_EMPTY && value.is_empty() {
-			return self.remove(key)
+			return self.remove(key);
 		}
 
 		let mut old_val = None;
